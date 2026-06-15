@@ -43,7 +43,6 @@ export function stopInventarioSync() {
     if (unsubInspecoes) unsubInspecoes();
 }
 
-
 function renderInventario() {
     gridExtintores.innerHTML = '';
     
@@ -131,12 +130,10 @@ document.getElementById('searchExtInput').oninput = () => {
     renderInventario();
 };
 
-
-// Procure por esta parte dentro da função verDetalhes no seu js/inventario.js
-// Vamos atualizar o HTML que é injetado na div 'detalhesExtintorCard'
-
 function verDetalhes(ext, historicoExt) {
-    // ... (mantenha a lógica inicial que você já tem para esconder/exibir as seções)
+    // Correção da navegação: Esconde a lista geral e exibe a seção de detalhes
+    secInventario.classList.add('hidden'); 
+    secDetalhes.classList.remove('hidden');
 
     const ultimaInspecao = historicoExt[0];
     
@@ -157,8 +154,6 @@ function verDetalhes(ext, historicoExt) {
     let checklistCompletoHTML = '';
     
     if (ultimaInspecao) {
-        // Mapeia todos os itens padrão da NBR que seu formulário avalia
-        // Caso os nomes das chaves no seu banco sejam diferentes, ajuste os textos abaixo:
         const mapeamentoItens = [
             { chave: 'manometro', label: 'Pressão do Manômetro' },
             { chave: 'lacre', label: 'Lacre de Segurança' },
@@ -177,7 +172,6 @@ function verDetalhes(ext, historicoExt) {
         `;
 
         mapeamentoItens.forEach(item => {
-            // Verifica se o item específico foi marcado como reprovado na vistoria
             const foiReprovado = ultimaInspecao.itensReprovados?.includes(item.label) || ultimaInspecao[item.chave] === false;
             
             let badgeStatus = `<span class="text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-md uppercase"><i class="fa-solid fa-check mr-1"></i> OK</span>`;
@@ -205,7 +199,7 @@ function verDetalhes(ext, historicoExt) {
         `;
     }
 
-    // Injeta a estrutura completa de volta na tela, posicionando o novo card abaixo das notas
+    // Injeta a estrutura completa de volta na tela
     document.getElementById('detalhesExtintorCard').innerHTML = `
         <div class="bg-nibt-card border border-nibt-border rounded-2xl p-5 shadow-md space-y-4">
             <div class="flex justify-between items-start">
@@ -255,9 +249,10 @@ function verDetalhes(ext, historicoExt) {
         </div>
     `;
 
-    // Vincula o clique do botão de nova vistoria
-    document.getElementById('btnIniciarVistoriaId').onclick = () => abrirFormularioVistoria(ext);
+    // Correção do Import/Chamada do clique do botão de nova vistoria
+    document.getElementById('btnIniciarVistoriaId').onclick = () => abrirVistoria(ext);
 }
+
 // Navegação para Voltar ao Inventário Geral
 backToInventarioBtn.onclick = () => {
     secDetalhes.classList.add('hidden');
