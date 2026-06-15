@@ -1,0 +1,21 @@
+Atue como um Engenheiro de Software Sênior especialista em JavaScript ES6+ e Firebase.
+
+CONTEXTO:
+O sistema parou de carregar na tela de login após alterações no arquivo 'js/inventario.js'. A aplicação utiliza módulos ES6 (type="module") e o Firestore para sincronização de dados em tempo real. O comportamento atual é: ao carregar, a página trava na tela de login e o botão de "Iniciar Sessão" não dispara nenhuma ação, nem erros claros aparecem no fluxo principal, apenas o carregamento da página parece ser interrompido silenciosamente.
+
+O PROJETO:
+- js/inspecao.js (Manipula o formulário de vistorias)
+- js/inventario.js (Manipula a listagem e cards de extintores)
+- Ambos os arquivos importam dependências do firebase-config.js.
+
+PROBLEMA IDENTIFICADO:
+Suspeito que a causa seja uma Dependência Circular entre 'js/inspecao.js' e 'js/inventario.js', ou uma falha na inicialização assíncrona do onSnapshot no inventario.js que impede o carregamento do DOM.
+
+SUA TAREFA:
+1. Analise a arquitetura de importações e identifique o possível loop de dependência.
+2. Seja rigoroso: não apenas aponte o erro, mas sugira a refatoração necessária para desacoplar as funções, garantindo que o módulo de login não seja afetado pelo carregamento do inventário.
+3. Proponha uma estrutura onde o 'inventario.js' possa renderizar os cards corretamente (com ordenação crescente e lógica de status de conformidade) sem precisar importar funções de 'inspecao.js'.
+4. Instrua como depurar isso via console para confirmar se o erro é de sintaxe ou de carregamento de módulo.
+
+DADOS DE ENTRADA:
+Analise o código fornecido abaixo para identificar onde a quebra de contrato entre os módulos está ocorrendo.
