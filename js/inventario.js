@@ -34,13 +34,80 @@ export function startInventarioSync() {
     unsubInspecoes = onSnapshot(colInspecoes, (snapshot) => {
         inspecoesCache = [];
         snapshot.forEach(doc => { inspecoesCache.push({ id: doc.id, ...doc.data() }); });
-        renderInventario(); // Re-renderiza para atualizar cores de status nos cards
+        renderInventario(); // Re-renderiza para atualizar status em tempo real
     });
 }
 
 export function stopInventarioSync() {
     if (unsubInventario) unsubInventario();
     if (unsubInspecoes) unsubInspecoes();
+}
+
+// Helper para normalizar textos removendo acentos e símbolos para uma comparação 100% precisa
+function normalizeText(str) {
+    if (!str) return "";
+    return str.toString()
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+              .replace(/[^a-z0-9]/g, "");     // Remove espaços, barras, parênteses e símbolos
+}
+
+// Extrai o nome do avaliador buscando qualquer campo de e-mail compatível no banco
+function obterNomeAvaliador(inspecao) {
+    if (!inspecao) return "N/A";
+    const rawUser = inspecao.usuario || inspecao.usuarioEmail || inspecao.operador || inspecao.user || inspecao.avaliador || inspecao.email || "";
+    if (!rawUser) return "N/A";
+    
+    if (typeof rawUser === "string") {
+        return rawUser.split("@")[0].toUpperCase();
+    }
+    return String(rawUser).toUpperCase();
+}
+
+// Helper inteligente para agrupar e calcular falhas de forma híbrida (por array ou por chave boolean)
+function obterItensReprovados(inspecao) {
+    if (!inspecao) return [];
+    
+    // Se o banco já possui uma lista de strings prontas
+    if (inspecao.itensReprovados && Array.isArray(inspecao.itensReprovados)) {
+        return inspecao.itensReprovados;
+    }
+    if (inspecao.itensNaoConformes && Array.isArray(inspecao.itensNaoConformes)) {
+        return inspecao.itensNaoConformes;
+    }
+
+    // Se o banco armazena apenas campos booleans individuais, reconstrói a lista dinamicamente
+    const reprovadosCalculados = [];
+    if (inspecao.manometro === false || inspecao.manometro === "Não") reprovadosCalculados.push("Pressão do Manômetro");
+    if (inspecao.lacre === false || inspecao.lacre === "Não") reprovadosCalculados.push("Lacre de Segurança");
+    if (inspecao.sinalizacao === false || inspecao.sinalizacao === "Não") reprovadosCalculados.push("Sinalização de Parede (Placa)");
+    if (inspecao.mangueira === false || inspecao.mangueira === "Não") reprovadosCalculados.push("Mangueira e Difusor");
+    if (inspecao.acesso === false || inspecao.acesso === "Não") reprovadosCalculados.push("Desobstrução do Acesso");
+    if (inspecao.casco === false || inspecao.casco === "Não") reprovadosCalculados.push("Estado do Casco / Pintura");
+
+    return reprovadosCalculados;
+}
+
+// Compara de forma tolerante a falhas se um item específico foi reprovado
+function verificarSeItemFalhou(item, inspecao, listaReprovados) {
+    if (!inspecao) return false;
+
+    // 1. Verificação por chave boolean direta
+    if (inspecao[item.chave] === false || inspecao[item.chave] === "Não") {
+        return true;
+    }
+
+    // 2. Comparação de Strings Normalizadas para evitar quebra por barra vs parênteses
+    const labelNormalizado = normalizeText(item.label);
+    const chaveNormalizada = normalizeText(item.chave);
+
+    return listaReprovados.some(r => {
+        const reprovadoNormalizado = normalizeText(r);
+        return reprovadoNormalizado.includes(labelNormalizado) || 
+               labelNormalizado.includes(reprovadoNormalizado) || 
+               reprovadoNormalizado.includes(chaveNormalizada);
+    });
 }
 
 function renderInventario() {
@@ -51,25 +118,21 @@ function renderInventario() {
         return;
     }
 
-    // 1. ORDENAÇÃO CRESCENTE: Ordena o cache pelo ID do extintor
+    // Ordena o cache pelo ID do extintor
     const inventarioOrdenado = [...inventarioCache].sort((a, b) => {
         return a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' });
     });
 
-    // Pega o termo digitado na barra de pesquisa (se houver)
     const termoBusca = document.getElementById('searchExtInput')?.value.trim().toUpperCase() || '';
-
     let cardsRenderizados = 0;
 
     inventarioOrdenado.forEach(ext => {
-        // 2. FILTRO DA BUSCA: Se o usuário digitou algo e não bate com o ID, ignora este extintor
         if (termoBusca && !ext.id.toUpperCase().includes(termoBusca)) {
             return; 
         }
 
         cardsRenderizados++;
 
-        // Encontra a última inspeção feita para este extintor específico
         const historicoExt = inspecoesCache
             .filter(i => i.idExtintor === ext.id)
             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -77,7 +140,6 @@ function renderInventario() {
         const ultimaInspecao = historicoExt[0];
         const jaFeitoHoje = verificarTravaDuplicidade(ext.id);
 
-        // Define a tag visual de status baseada na última vistoria
         let statusTag = `<span class="text-[9px] font-black bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-md uppercase">Sem Vistoria</span>`;
         if (jaFeitoHoje) {
             statusTag = `<span class="text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-md uppercase"><i class="fa-solid fa-check"></i> Concluído Hoje</span>`;
@@ -85,11 +147,9 @@ function renderInventario() {
             statusTag = `<span class="text-[9px] font-black bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-md uppercase">Pendente</span>`;
         }
 
-        // Formatação da data da última inspeção para exibir no card
         let dataTexto = "Última: Nenhuma registrada";
         if (ultimaInspecao && ultimaInspecao.timestamp) {
             const dataObjeto = new Date(ultimaInspecao.timestamp);
-            // Formata no padrão brasileiro (DD/MM/AAAA)
             const dia = String(dataObjeto.getDate()).padStart(2, '0');
             const mes = String(dataObjeto.getMonth() + 1).padStart(2, '0');
             const ano = dataObjeto.getFullYear();
@@ -119,33 +179,33 @@ function renderInventario() {
         gridExtintores.appendChild(card);
     });
 
-    // Se a busca não encontrar nada que corresponda
     if (cardsRenderizados === 0 && termoBusca) {
         gridExtintores.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">Nenhum extintor correspondente a "${termoBusca}" encontrado.</p>`;
     }
 }
 
-// Vincula o evento de digitação da barra de pesquisa para atualizar a tela na hora
 document.getElementById('searchExtInput').oninput = () => {
     renderInventario();
 };
 
 function verDetalhes(ext, historicoExt) {
-    // Correção da navegação: Esconde a lista geral e exibe a seção de detalhes
     secInventario.classList.add('hidden'); 
     secDetalhes.classList.remove('hidden');
 
     const ultimaInspecao = historicoExt[0];
     
+    // Obtém a lista normalizada de itens reprovados
+    const listaReprovados = obterItensReprovados(ultimaInspecao);
+    const avaliadorDisplay = obterNomeAvaliador(ultimaInspecao);
+    
     // Trecho que gera o HTML do status de reparo principal
     let statusReparoHTML = `<div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs p-3 rounded-xl flex items-center gap-2 font-bold"><i class="fa-solid fa-circle-check"></i> 100% em Conformidade (Nenhum defeito)</div>`;
     
-    // Se houver itens reprovados na última inspeção, monta a lista de erros
-    if (ultimaInspecao && ultimaInspecao.itensReprovados && ultimaInspecao.itensReprovados.length > 0) {
+    if (listaReprovados.length > 0) {
         statusReparoHTML = `
             <div class="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl space-y-1 font-bold">
                 <p class="text-[10px] uppercase tracking-wider text-red-300 mb-1"><i class="fa-solid fa-triangle-exclamation"></i> Itens Não Conformes:</p>
-                ${ultimaInspecao.itensReprovados.map(item => `<div class="bg-red-950/40 px-2 py-1 rounded border border-red-900/30 text-[11px] font-semibold"><i class="fa-solid fa-xmark mr-1.5 text-red-500"></i>${item}</div>`).join('')}
+                ${listaReprovados.map(item => `<div class="bg-red-950/40 px-2 py-1 rounded border border-red-900/30 text-[11px] font-semibold"><i class="fa-solid fa-xmark mr-1.5 text-red-500"></i>${item}</div>`).join('')}
             </div>
         `;
     }
@@ -172,7 +232,7 @@ function verDetalhes(ext, historicoExt) {
         `;
 
         mapeamentoItens.forEach(item => {
-            const foiReprovado = ultimaInspecao.itensReprovados?.includes(item.label) || ultimaInspecao[item.chave] === false;
+            const foiReprovado = verificarSeItemFalhou(item, ultimaInspecao, listaReprovados);
             
             let badgeStatus = `<span class="text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-md uppercase"><i class="fa-solid fa-check mr-1"></i> OK</span>`;
             if (foiReprovado) {
@@ -221,7 +281,7 @@ function verDetalhes(ext, historicoExt) {
                 </div>
                 <div class="flex justify-between">
                     <span class="text-slate-400 font-semibold">Avaliador:</span>
-                    <span class="text-red-400 font-black uppercase">${ultimaInspecao ? ultimaInspecao.usuario : 'N/A'}</span>
+                    <span class="text-red-400 font-black uppercase">${avaliadorDisplay}</span>
                 </div>
                 <div class="flex justify-between">
                     <span class="text-slate-400 font-semibold">Prox. Recarga:</span>
@@ -249,9 +309,27 @@ function verDetalhes(ext, historicoExt) {
         </div>
     `;
 
-    // Correção do Import/Chamada do clique do botão de nova vistoria
     document.getElementById('btnIniciarVistoriaId').onclick = () => abrirVistoria(ext);
 }
+
+// Função de exclusão de extintor integrada ao modal estético global (substitui alerts invasivos)
+window.excluirExtintorDoBanco = async function(id) {
+    try {
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'inventario', id);
+        await deleteDoc(docRef);
+        
+        secDetalhes.classList.add('hidden');
+        secInventario.classList.remove('hidden');
+        
+        if (typeof window.showModal === 'function') {
+            window.showModal('Excluído', `O extintor ${id} foi removido com sucesso do banco de dados.`, 'success');
+        }
+    } catch (err) {
+        if (typeof window.showModal === 'function') {
+            window.showModal('Erro', 'Não foi possível excluir este extintor. Verifique suas permissões.', 'error');
+        }
+    }
+};
 
 // Navegação para Voltar ao Inventário Geral
 backToInventarioBtn.onclick = () => {
@@ -277,6 +355,8 @@ addExtintorForm.onsubmit = async (e) => {
         addExtintorModal.classList.add('hidden');
         addExtintorForm.reset();
     } catch(err) {
-        alert("Erro ao salvar o extintor no Firebase.");
+        if (typeof window.showModal === 'function') {
+            window.showModal('Erro', 'Falha ao salvar o novo extintor no banco de dados.', 'error');
+        }
     }
 };
