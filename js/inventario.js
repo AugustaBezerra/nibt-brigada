@@ -43,33 +43,41 @@ export function stopInventarioSync() {
     if (unsubInspecoes) unsubInspecoes();
 }
 
-// Helper para normalizar textos removendo acentos e símbolos para uma comparação 100% precisa
+// Helper para normalizar textos removendo acentos e símbolos para comparação precisa
 function normalizeText(str) {
     if (!str) return "";
     return str.toString()
               .toLowerCase()
               .normalize("NFD")
               .replace(/[\u0300-\u036f]/g, "") // Remove acentos
-              .replace(/[^a-z0-9]/g, "");     // Remove espaços, barras, parênteses e símbolos
+              .replace(/[^a-z0-9]/g, "");     // Remove símbolos, parênteses e espaços
 }
 
-// Extrai o nome do avaliador buscando qualquer campo de e-mail compatível no banco
+// Garante que o nome do avaliador seja extraído e nunca retorne undefined
 function obterNomeAvaliador(inspecao) {
     if (!inspecao) return "N/A";
-    const rawUser = inspecao.usuario || inspecao.usuarioEmail || inspecao.operador || inspecao.user || inspecao.avaliador || inspecao.email || "";
-    if (!rawUser) return "N/A";
+    const rawUser = inspecao.usuario || inspecao.usuarioEmail || inspecao.operador || inspecao.email || "";
+    
+    // Tratamento rigoroso contra strings nulas ou indefinidas
+    if (!rawUser || rawUser === "undefined" || rawUser === "null" || String(rawUser).trim() === "") {
+        return "ANÔNIMO";
+    }
     
     if (typeof rawUser === "string") {
-        return rawUser.split("@")[0].toUpperCase();
+        const nomeLimpo = rawUser.split("@")[0].trim();
+        if (nomeLimpo.toLowerCase() === "undefined" || nomeLimpo.toLowerCase() === "null") {
+            return "ANÔNIMO";
+        }
+        return nomeLimpo.toUpperCase();
     }
     return String(rawUser).toUpperCase();
 }
 
-// Helper inteligente para agrupar e calcular falhas de forma híbrida (por array ou por chave boolean)
+// Constrói de forma segura a lista de itens que falharam na inspeção
 function obterItensReprovados(inspecao) {
     if (!inspecao) return [];
     
-    // Se o banco já possui uma lista de strings prontas
+    // 1. Se o banco já possui o array compilado de itens reprovados/não conformes
     if (inspecao.itensReprovados && Array.isArray(inspecao.itensReprovados)) {
         return inspecao.itensReprovados;
     }
@@ -77,11 +85,11 @@ function obterItensReprovados(inspecao) {
         return inspecao.itensNaoConformes;
     }
 
-    // Se o banco armazena apenas campos booleans individuais, reconstrói a lista dinamicamente
+    // 2. Se o banco armazena apenas campos booleanos individuais, reconstrói o array dinamicamente
     const reprovadosCalculados = [];
     if (inspecao.manometro === false || inspecao.manometro === "Não") reprovadosCalculados.push("Pressão do Manômetro");
     if (inspecao.lacre === false || inspecao.lacre === "Não") reprovadosCalculados.push("Lacre de Segurança");
-    if (inspecao.sinalizacao === false || inspecao.sinalizacao === "Não") reprovadosCalculados.push("Sinalização de Parede (Placa)");
+    if (inspecao.sinalizacao === false || inspecao.sinalizacao === "Não") reprovadosCalculados.push("Sinalização de Parede / Placa");
     if (inspecao.mangueira === false || inspecao.mangueira === "Não") reprovadosCalculados.push("Mangueira e Difusor");
     if (inspecao.acesso === false || inspecao.acesso === "Não") reprovadosCalculados.push("Desobstrução do Acesso");
     if (inspecao.casco === false || inspecao.casco === "Não") reprovadosCalculados.push("Estado do Casco / Pintura");
@@ -89,23 +97,26 @@ function obterItensReprovados(inspecao) {
     return reprovadosCalculados;
 }
 
-// Compara de forma tolerante a falhas se um item específico foi reprovado
+// Verifica se um item específico falhou, cruzando o campo booleano direto ou a lista de reprovados
 function verificarSeItemFalhou(item, inspecao, listaReprovados) {
     if (!inspecao) return false;
 
-    // 1. Verificação por chave boolean direta
-    if (inspecao[item.chave] === false || inspecao[item.chave] === "Não") {
-        return true;
+    // 1. Verificação prioritária pelo campo booleano individual do banco
+    const valorCampo = inspecao[item.chave];
+    if (valorCampo !== undefined) {
+        if (valorCampo === false || valorCampo === "Não" || valorCampo === "Reprovado" || valorCampo === "N") {
+            return true; // Falhou
+        }
     }
 
-    // 2. Comparação de Strings Normalizadas para evitar quebra por barra vs parênteses
+    // 2. Verificação de correspondência textual aproximada (Fuzzy Match) contra a lista de strings
     const labelNormalizado = normalizeText(item.label);
     const chaveNormalizada = normalizeText(item.chave);
 
     return listaReprovados.some(r => {
         const reprovadoNormalizado = normalizeText(r);
         return reprovadoNormalizado.includes(labelNormalizado) || 
-               labelNormalizado.includes(reprovadoNormalizado) || 
+               labelNormalizado.includes(reprovadoNormalizado) ||
                reprovadoNormalizado.includes(chaveNormalizada);
     });
 }
@@ -194,11 +205,11 @@ function verDetalhes(ext, historicoExt) {
 
     const ultimaInspecao = historicoExt[0];
     
-    // Obtém a lista normalizada de itens reprovados
+    // Recuperação rigorosa de dados limpos do banco
     const listaReprovados = obterItensReprovados(ultimaInspecao);
     const avaliadorDisplay = obterNomeAvaliador(ultimaInspecao);
     
-    // Trecho que gera o HTML do status de reparo principal
+    // Determinação precisa do status de reparo principal
     let statusReparoHTML = `<div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs p-3 rounded-xl flex items-center gap-2 font-bold"><i class="fa-solid fa-circle-check"></i> 100% em Conformidade (Nenhum defeito)</div>`;
     
     if (listaReprovados.length > 0) {
@@ -210,7 +221,7 @@ function verDetalhes(ext, historicoExt) {
         `;
     }
 
-    // --- NOVA SEÇÃO: GERADOR DO CHECKLIST COMPLETO EXIGIDO PELO SR. CHOCOLATE ---
+    // --- NOVA SEÇÃO: DETALHAMENTO DO CHECKLIST EXIGIDO PELO SR. CHOCOLATE ---
     let checklistCompletoHTML = '';
     
     if (ultimaInspecao) {
@@ -224,11 +235,10 @@ function verDetalhes(ext, historicoExt) {
         ];
 
         checklistCompletoHTML = `
-            <div class="bg-nibt-dark border border-nibt-border rounded-xl p-4 mt-3 space-y-3">
-                <h5 class="text-[11px] font-black uppercase text-slate-400 tracking-wider border-b border-nibt-border pb-1.5 flex items-center gap-1">
-                    <i class="fa-solid fa-clipboard-list text-red-500"></i> Checklist Completo da Inspeção
-                </h5>
-                <div class="space-y-2">
+            <!-- Bloco de Checklist unificado ao card de detalhes -->
+            <div class="space-y-1.5 pt-1">
+                <p class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Checklist Completo da Inspeção:</p>
+                <div class="bg-nibt-dark/40 border border-nibt-border/60 rounded-xl p-4 space-y-2 text-xs">
         `;
 
         mapeamentoItens.forEach(item => {
@@ -240,8 +250,8 @@ function verDetalhes(ext, historicoExt) {
             }
 
             checklistCompletoHTML += `
-                <div class="flex justify-between items-center py-1 border-b border-nibt-border/30 last:border-0">
-                    <span class="text-xs text-slate-300 font-medium">${item.label}</span>
+                <div class="flex justify-between items-center py-1.5 border-b border-nibt-border/30 last:border-0">
+                    <span class="text-slate-300 font-medium">${item.label}</span>
                     ${badgeStatus}
                 </div>
             `;
@@ -253,13 +263,16 @@ function verDetalhes(ext, historicoExt) {
         `;
     } else {
         checklistCompletoHTML = `
-            <div class="bg-nibt-dark border border-nibt-border rounded-xl p-4 text-center mt-3">
-                <p class="text-xs text-slate-500">Nenhum histórico de checklist encontrado para este extintor.</p>
+            <div class="space-y-1.5 pt-1">
+                <p class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Checklist Completo da Inspeção:</p>
+                <div class="bg-nibt-dark/40 border border-nibt-border/60 rounded-xl p-4 text-center text-xs text-slate-500">
+                    Nenhum histórico de checklist encontrado para este extintor.
+                </div>
             </div>
         `;
     }
 
-    // Injeta a estrutura completa de volta na tela
+    // Injeta a estrutura completa de volta na tela, mantendo o design original integrado
     document.getElementById('detalhesExtintorCard').innerHTML = `
         <div class="bg-nibt-card border border-nibt-border rounded-2xl p-5 shadow-md space-y-4">
             <div class="flex justify-between items-start">
@@ -301,6 +314,7 @@ function verDetalhes(ext, historicoExt) {
                 </div>
             </div>
 
+            <!-- Checklist Completo integrado no mesmo fluxo visual -->
             ${checklistCompletoHTML}
 
             <button id="btnIniciarVistoriaId" class="w-full text-center text-xs font-black tracking-wide uppercase py-4 rounded-xl shadow-lg transition-all ${verificarTravaDuplicidade(ext.id) ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white'}" ${verificarTravaDuplicidade(ext.id) ? 'disabled' : ''}>
