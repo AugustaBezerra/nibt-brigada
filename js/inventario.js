@@ -43,10 +43,10 @@ export function stopInventarioSync() {
     if (unsubInspecoes) unsubInspecoes();
 }
 
-// Substitua a renderInventario antiga por esta versão inteligente:
+
 function renderInventario() {
     gridExtintores.innerHTML = '';
-
+    
     if (inventarioCache.length === 0) {
         gridExtintores.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">Nenhum extintor cadastrado no banco.</p>`;
         return;
@@ -65,7 +65,7 @@ function renderInventario() {
     inventarioOrdenado.forEach(ext => {
         // 2. FILTRO DA BUSCA: Se o usuário digitou algo e não bate com o ID, ignora este extintor
         if (termoBusca && !ext.id.toUpperCase().includes(termoBusca)) {
-            return;
+            return; 
         }
 
         cardsRenderizados++;
@@ -74,7 +74,7 @@ function renderInventario() {
         const historicoExt = inspecoesCache
             .filter(i => i.idExtintor === ext.id)
             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
+        
         const ultimaInspecao = historicoExt[0];
         const jaFeitoHoje = verificarTravaDuplicidade(ext.id);
 
@@ -86,6 +86,17 @@ function renderInventario() {
             statusTag = `<span class="text-[9px] font-black bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-md uppercase">Pendente</span>`;
         }
 
+        // Formatação da data da última inspeção para exibir no card
+        let dataTexto = "Última: Nenhuma registrada";
+        if (ultimaInspecao && ultimaInspecao.timestamp) {
+            const dataObjeto = new Date(ultimaInspecao.timestamp);
+            // Formata no padrão brasileiro (DD/MM/AAAA)
+            const dia = String(dataObjeto.getDate()).padStart(2, '0');
+            const mes = String(dataObjeto.getMonth() + 1).padStart(2, '0');
+            const ano = dataObjeto.getFullYear();
+            dataTexto = `Última vistoria: ${dia}/${mes}/${ano}`;
+        }
+
         const card = document.createElement('div');
         card.className = "bg-nibt-card border border-nibt-border rounded-xl p-4 flex justify-between items-center hover:border-red-500/30 transition-all cursor-pointer shadow-md";
         card.innerHTML = `
@@ -95,13 +106,16 @@ function renderInventario() {
                     ${statusTag}
                 </div>
                 <p class="text-xs text-slate-200 font-bold truncate">${ext.local}</p>
-                <p class="text-[10px] text-slate-400 uppercase font-semibold">${ext.tipoKgL}</p>
+                <div class="flex items-center justify-between pt-0.5">
+                    <p class="text-[10px] text-slate-400 uppercase font-semibold">${ext.tipoKgL}</p>
+                    <p class="text-[10px] text-slate-500 font-medium">${dataTexto}</p>
+                </div>
             </div>
             <div class="text-slate-500 hover:text-white transition-colors p-1">
                 <i class="fa-solid fa-chevron-right"></i>
             </div>
         `;
-
+        
         card.onclick = () => verDetalhes(ext, historicoExt);
         gridExtintores.appendChild(card);
     });
