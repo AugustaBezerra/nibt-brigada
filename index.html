@@ -82,21 +82,49 @@
         <!-- Conteúdo Principal Dinâmico -->
         <main class="flex-1 p-4 pb-24 max-w-md mx-auto w-full">
 
-            <!-- SEÇÃO 1: PAINEL DE INVENTÁRIO (Cards dos Extintores) -->
-            <div id="secInventario" class="space-y-4">
+            <!-- SEÇÃO 0: PAINEL DE CATEGORIAS -->
+            <div id="secCategorias" class="space-y-4">
                 <div class="flex justify-between items-center">
-                    <h3 class="text-base font-black tracking-wide uppercase border-l-4 border-red-500 pl-3">Inventário Geral</h3>
-                    <button id="openAddExtModalBtn" class="bg-red-600/20 text-red-400 border border-red-500/30 text-xs font-bold py-1.5 px-3 rounded-lg hover:bg-red-600 hover:text-white transition-all">
-                        <i class="fa-solid fa-plus mr-1"></i> Novo Extintor
+                    <h3 class="text-base font-black tracking-wide uppercase border-l-4 border-red-500 pl-3">Categorias</h3>
+                    <button id="openAddElementoModalBtn" class="bg-red-600/20 text-red-400 border border-red-500/30 text-xs font-bold py-1.5 px-3 rounded-lg hover:bg-red-600 hover:text-white transition-all">
+                        <i class="fa-solid fa-plus mr-1"></i> Novo Elemento
                     </button>
                 </div>
+                <div class="grid grid-cols-2 gap-4 mt-4">
+                    <!-- Card Extintores -->
+                    <div id="cardCatExtintores" class="bg-nibt-card border border-nibt-border rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-red-500/50 hover:bg-nibt-card/80 transition-all shadow-lg">
+                        <div class="w-16 h-16 bg-red-600/20 rounded-full flex items-center justify-center text-red-500 text-3xl">
+                            <i class="fa-solid fa-fire-extinguisher"></i>
+                        </div>
+                        <h4 class="text-sm font-black uppercase tracking-wider text-white">Extintores</h4>
+                        <span id="badgeExtintores" class="text-[10px] font-bold bg-nibt-dark text-slate-400 px-3 py-1 rounded-full border border-nibt-border">Carregando...</span>
+                    </div>
+                    <!-- Card Hidrantes -->
+                    <div id="cardCatHidrantes" class="bg-nibt-card border border-nibt-border rounded-2xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-blue-500/50 hover:bg-nibt-card/80 transition-all shadow-lg">
+                        <div class="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center text-blue-500 text-3xl">
+                            <i class="fa-solid fa-faucet-drip"></i>
+                        </div>
+                        <h4 class="text-sm font-black uppercase tracking-wider text-white">Hidrantes</h4>
+                        <span id="badgeHidrantes" class="text-[10px] font-bold bg-nibt-dark text-slate-400 px-3 py-1 rounded-full border border-nibt-border">Carregando...</span>
+                    </div>
+                </div>
+            </div>
 
-                <!-- BARRA DE PESQUISA POR NÚMERO/CÓDIGO (Adicionado Aqui) -->
+            <!-- SEÇÃO 1: PAINEL DE INVENTÁRIO (Cards dos Elementos) -->
+            <div id="secInventario" class="space-y-4 hidden">
+                <button id="backToCategoriasBtn" class="text-xs text-slate-400 hover:text-white font-bold py-1 flex items-center gap-1 mb-2">
+                    <i class="fa-solid fa-chevron-left"></i> Voltar às Categorias
+                </button>
+                <div class="flex justify-between items-center">
+                    <h3 id="tituloInventario" class="text-base font-black tracking-wide uppercase border-l-4 border-red-500 pl-3">Inventário</h3>
+                </div>
+
+                <!-- BARRA DE PESQUISA POR NÚMERO/CÓDIGO -->
                 <div class="relative">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500 text-xs">
                         <i class="fa-solid fa-magnifying-glass"></i>
                     </span>
-                    <input type="text" id="searchExtInput" placeholder="Buscar extintor pelo número (Ex: EXT-01)..."
+                    <input type="text" id="searchExtInput" placeholder="Buscar pelo código (Ex: EXT-01)..."
                         class="w-full bg-nibt-card border border-nibt-border rounded-xl py-3 pl-10 pr-4 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-red-500/55 transition-all">
                 </div>
 
@@ -188,25 +216,32 @@
         </div>
     </div>
 
-    <!-- MODAL DE CADASTRO DE NOVO EXTINTOR -->
-    <div id="addExtintorModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 hidden">
+    <!-- MODAL DE CADASTRO DE NOVO ELEMENTO -->
+    <div id="addElementoModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6 hidden">
         <div class="w-full max-w-sm p-6 rounded-2xl bg-nibt-card border border-nibt-border space-y-4 shadow-2xl">
-            <h4 class="text-base font-black text-white uppercase border-l-4 border-red-500 pl-2">Cadastrar Extintor</h4>
-            <form id="addExtintorForm" class="space-y-3">
+            <h4 class="text-base font-black text-white uppercase border-l-4 border-red-500 pl-2">Cadastrar Novo Elemento</h4>
+            <form id="addElementoForm" class="space-y-3">
                 <div>
-                    <label class="block text-xs font-bold text-slate-400 mb-1">Código (Ex: EXT-15)</label>
-                    <input type="text" id="newExtId" required class="w-full bg-nibt-dark border border-nibt-border rounded-xl p-2.5 text-white uppercase">
+                    <label class="block text-xs font-bold text-slate-400 mb-1">Categoria</label>
+                    <select id="newCategoria" required class="w-full bg-nibt-dark border border-nibt-border rounded-xl p-2.5 text-white">
+                        <option value="Extintor">Extintor</option>
+                        <option value="Hidrante">Hidrante</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1">Código (Ex: EXT-15 ou HID-02)</label>
+                    <input type="text" id="newElementId" required class="w-full bg-nibt-dark border border-nibt-border rounded-xl p-2.5 text-white uppercase">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-400 mb-1">Localização (Ex: Corredor da Nave)</label>
-                    <input type="text" id="newExtLocal" required class="w-full bg-nibt-dark border border-nibt-border rounded-xl p-2.5 text-white">
+                    <input type="text" id="newElementLocal" required class="w-full bg-nibt-dark border border-nibt-border rounded-xl p-2.5 text-white">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-400 mb-1">Tipo e Capacidade (Ex: PQS - 4KG)</label>
-                    <input type="text" id="newExtTipo" required class="w-full bg-nibt-dark border border-nibt-border rounded-xl p-2.5 text-white" placeholder="Água 10L, CO2 6KG, PQS 4KG...">
+                    <label class="block text-xs font-bold text-slate-400 mb-1">Tipo e Especificações (Ex: PQS - 4KG / Mangueira 1.5")</label>
+                    <input type="text" id="newElementTipo" required class="w-full bg-nibt-dark border border-nibt-border rounded-xl p-2.5 text-white" placeholder="Detalhes do equipamento...">
                 </div>
                 <div class="flex gap-2 pt-2">
-                    <button type="button" id="closeAddExtModalBtn" class="flex-1 bg-nibt-dark border border-nibt-border text-slate-400 py-2.5 rounded-xl font-bold text-xs">Cancelar</button>
+                    <button type="button" id="closeAddElementoModalBtn" class="flex-1 bg-nibt-dark border border-nibt-border text-slate-400 py-2.5 rounded-xl font-bold text-xs">Cancelar</button>
                     <button type="submit" class="flex-1 bg-red-600 text-white py-2.5 rounded-xl font-bold text-xs shadow-lg shadow-red-600/20">Salvar no Banco</button>
                 </div>
             </form>

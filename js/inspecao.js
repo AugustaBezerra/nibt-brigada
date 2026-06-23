@@ -17,7 +17,7 @@ const observacoes = document.getElementById('observacoes');
 let extintorAtual = null;
 const conformidadeState = {};
 
-const checklistItems = [
+const checklistExtintores = [
     { id: 'acesso', label: 'Desobstrução e Acesso' },
     { id: 'sinalizacaoParede', label: 'Sinalização de Parede (Placa)' },
     { id: 'sinalizacaoPiso', label: 'Sinalização de Piso (Pintura)' },
@@ -28,6 +28,19 @@ const checklistItems = [
     { id: 'lacre', label: 'Lacre de Segurança Intacto' },
     { id: 'trava', label: 'Trava de Segurança / Pino' },
     { id: 'manometro', label: 'Manômetro na Faixa Verde' }
+];
+
+const checklistHidrantes = [
+    { id: 'caixa_abrigo', label: 'Caixa do Abrigo' },
+    { id: 'sinal_piso', label: 'Sinalização de Piso 1m X 1m' },
+    { id: 'sinal_placa', label: 'Sinalização Placa 1,80cm' },
+    { id: 'qtd_mangueira', label: 'Quantidade de Mangueira' },
+    { id: 'esguicho', label: 'Esguicho Regulável' },
+    { id: 'valvula_globo', label: 'Válvula de Globo' },
+    { id: 'chave_storz', label: 'Chave Storz' },
+    { id: 'adaptador', label: 'Adaptador de 2 1/2 P/ 1 1/2' },
+    { id: 'acrilico', label: 'Acrílico' },
+    { id: 'prox_teste_hidro', label: 'Próx. Teste Hidrostático (Prazo)' }
 ];
 
 export function verificarTravaDuplicidade(idExtintor) {
@@ -45,7 +58,10 @@ export function abrirVistoria(extintor) {
 
 function buildChecklistUI() {
     checklistContainer.innerHTML = '';
-    checklistItems.forEach(item => {
+    const catInfo = extintorAtual.categoria || 'Extintor';
+    const activeChecklist = catInfo === 'Hidrante' ? checklistHidrantes : checklistExtintores;
+
+    activeChecklist.forEach(item => {
         conformidadeState[item.id] = 'Conforme'; // Reseta padrão para Conforme
 
         const itemRow = document.createElement('div');
@@ -85,7 +101,7 @@ inspectionForm.onsubmit = async (e) => {
     if (!auth.currentUser || !extintorAtual) return;
 
     if (verificarTravaDuplicidade(extintorAtual.id)) {
-        window.showModal("Bloqueado", "Este extintor já foi inspecionado hoje!", "error");
+        window.showModal("Bloqueado", "Este elemento já foi inspecionado hoje!", "error");
         return;
     }
 
@@ -93,7 +109,7 @@ inspectionForm.onsubmit = async (e) => {
     const submitBtn = inspectionForm.querySelector('button[type="submit"]');
 
     const payload = {
-        idExtintor: extintorAtual.id,
+        idExtintor: extintorAtual.id, // Keeping idExtintor for backward compatibility with db schema
         nomeBrigadista: auth.currentUser.email.split('@')[0],
         emailBrigadista: auth.currentUser.email,
         dataInspecao: dataHoje,
@@ -111,7 +127,8 @@ inspectionForm.onsubmit = async (e) => {
         const colInspecoes = collection(db, 'artifacts', appId, 'public', 'data', 'inspecoes');
         await addDoc(colInspecoes, payload);
 
-        window.showModal("Sucesso!", `Vistoria do extintor ${extintorAtual.id} gravada.`, "success");
+        const catInfo = extintorAtual.categoria || 'Extintor';
+        window.showModal("Sucesso!", `Vistoria de ${catInfo} ${extintorAtual.id} gravada.`, "success");
 
         inspectionForm.reset();
         extintorAtual = null;
