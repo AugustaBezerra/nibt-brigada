@@ -43,21 +43,27 @@ function updateBadges() {
 }
 
 // Navegação de Categorias
-document.getElementById('cardCatExtintores').onclick = () => {
-    currentCategory = 'Extintor';
-    tituloInventario.innerText = 'Inventário - Extintores';
-    secCategorias.classList.add('hidden');
-    secInventario.classList.remove('hidden');
-    renderInventario();
-};
+const cardCatExtintores = document.getElementById('cardCatExtintores');
+if (cardCatExtintores) {
+    cardCatExtintores.onclick = () => {
+        currentCategory = 'Extintor';
+        if(tituloInventario) tituloInventario.innerText = 'Inventário - Extintores';
+        if(secCategorias) secCategorias.classList.add('hidden');
+        if(secInventario) secInventario.classList.remove('hidden');
+        renderInventario();
+    };
+}
 
-document.getElementById('cardCatHidrantes').onclick = () => {
-    currentCategory = 'Hidrante';
-    tituloInventario.innerText = 'Inventário - Hidrantes';
-    secCategorias.classList.add('hidden');
-    secInventario.classList.remove('hidden');
-    renderInventario();
-};
+const cardCatHidrantes = document.getElementById('cardCatHidrantes');
+if (cardCatHidrantes) {
+    cardCatHidrantes.onclick = () => {
+        currentCategory = 'Hidrante';
+        if(tituloInventario) tituloInventario.innerText = 'Inventário - Hidrantes';
+        if(secCategorias) secCategorias.classList.add('hidden');
+        if(secInventario) secInventario.classList.remove('hidden');
+        renderInventario();
+    };
+}
 
 if (backToCategoriasBtn) {
     backToCategoriasBtn.onclick = () => {
@@ -71,16 +77,32 @@ function renderInventario() {
     if (!gridExtintores || !currentCategory) return;
     gridExtintores.innerHTML = '';
 
+    const searchExtInput = document.getElementById('searchExtInput');
+    const termoBusca = searchExtInput ? searchExtInput.value.toLowerCase() : '';
+
     // Filtra pela categoria atual (considera 'Extintor' se não houver categoria, para retrocompatibilidade)
     const inventarioFiltrado = state.inventarioCache.filter(ext => {
         const cat = ext.categoria || 'Extintor';
-        return cat === currentCategory;
+        const isMatchCategoria = (cat === currentCategory);
+        const isMatchBusca = termoBusca === '' || ext.id.toLowerCase().includes(termoBusca);
+        return isMatchCategoria && isMatchBusca;
     });
 
     // Ordenação alfanumérica crescente correta
     const inventarioOrdenado = [...inventarioFiltrado].sort((a, b) => 
         a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' })
     );
+
+    // Evento de busca contínua
+    if (searchExtInput && !searchExtInput.hasAttribute('data-listener-attached')) {
+        searchExtInput.setAttribute('data-listener-attached', 'true');
+        searchExtInput.oninput = () => renderInventario();
+    }
+
+    if (inventarioOrdenado.length === 0) {
+        gridExtintores.innerHTML = '<p class="text-slate-500 text-xs text-center py-4">Nenhum elemento encontrado.</p>';
+        return;
+    }
 
     inventarioOrdenado.forEach(ext => {
         const historicoExt = state.inspecoesCache
