@@ -1,7 +1,7 @@
 // js/inspecao.js
 import { db, appId, auth } from './firebase-config.js';
 import { collection, addDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { inspecoesCache } from './inventario.js';
+import { state } from './state.js';
 
 const secVistoria = document.getElementById('secVistoria');
 const secInventario = document.getElementById('secInventario');
@@ -32,7 +32,7 @@ const checklistItems = [
 
 export function verificarTravaDuplicidade(idExtintor) {
     const dataHoje = new Date().toISOString().split('T')[0];
-    return inspecoesCache.some(i => i.idExtintor === idExtintor && i.dataInspecao === dataHoje);
+    return state.inspecoesCache.some(i => i.idExtintor === idExtintor && i.dataInspecao === dataHoje);
 }
 
 export function abrirVistoria(extintor) {

@@ -1,0 +1,11 @@
+# Firebase Service Account
+extrator-brigada/serviceAccountKey.json
+
+# Python Virtual Environment
+extrator-brigada/venv/
+extrator-brigada/__pycache__/
+*.pyc
+
+# Local Environment Variables
+extrator-brigada/.env
+.env
