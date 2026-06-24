@@ -18,19 +18,30 @@ const badgeHidrantes = document.getElementById('badgeHidrantes');
 let currentCategory = null;
 
 // Inicializa a escuta em tempo real do banco
+let unsubInventario = null;
+let unsubInspecoes = null;
+
 export function startInventarioSync() {
+    if (unsubInventario) unsubInventario();
+    if (unsubInspecoes) unsubInspecoes();
+
     const colInventario = collection(db, 'artifacts', appId, 'public', 'data', 'inventario');
-    onSnapshot(colInventario, (snapshot) => {
+    unsubInventario = onSnapshot(colInventario, (snapshot) => {
         state.inventarioCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         updateBadges();
         renderInventario();
     });
 
     const colInspecoes = collection(db, 'artifacts', appId, 'public', 'data', 'inspecoes');
-    onSnapshot(colInspecoes, (snapshot) => {
+    unsubInspecoes = onSnapshot(colInspecoes, (snapshot) => {
         state.inspecoesCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderInventario();
     });
+}
+
+export function stopInventarioSync() {
+    if (unsubInventario) { unsubInventario(); unsubInventario = null; }
+    if (unsubInspecoes) { unsubInspecoes(); unsubInspecoes = null; }
 }
 
 function updateBadges() {
