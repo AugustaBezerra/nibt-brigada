@@ -321,6 +321,341 @@ if (closeAddElementoModalBtn) {
     };
 }
 
+// --- MODAL DE EXPORTAÇÃO DE RELATÓRIOS ---
+const exportRelatoriosModal = document.getElementById('exportRelatoriosModal');
+const openExportModalBtn = document.getElementById('openExportModalBtn');
+const closeExportModalBtn = document.getElementById('closeExportModalBtn');
+const btnExportPDF = document.getElementById('btnExportPDF');
+const btnExportExcel = document.getElementById('btnExportExcel');
+
+if (openExportModalBtn) {
+    openExportModalBtn.onclick = () => exportRelatoriosModal.classList.remove('hidden');
+}
+
+if (closeExportModalBtn) {
+    closeExportModalBtn.onclick = () => exportRelatoriosModal.classList.add('hidden');
+}
+
+const MAP_CHECKLIST = {
+    'acesso': 'Desobstrucao e Acesso',
+    'sinalizacaoParede': 'Sinalizacao de Parede (Placa)',
+    'sinalizacaoPiso': 'Sinalizacao de Piso (Pintura)',
+    'suporte': 'Suporte e Altura de Fixacao',
+    'cilindro': 'Casco / Cilindro Sem Corrosao',
+    'instrucoes': 'Quadro de Instrucoes Legivel',
+    'mangueira': 'Mangueira e Bico / Difusor',
+    'lacre': 'Lacre de Seguranca Intacto',
+    'trava': 'Trava de Seguranca / Pino',
+    'manometro': 'Manometro na Faixa Verde'
+};
+
+function formatarDataBR(dataStr) {
+    if (!dataStr || dataStr === 'N/A') return 'N/A';
+    try {
+        const partes = dataStr.split('-');
+        if (partes.length === 3) {
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+    } catch(e) {}
+    return dataStr;
+}
+
+if (btnExportPDF) {
+    btnExportPDF.onclick = () => {
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const todosElementos = [...state.inventarioCache, ...state.hidrantesCache];
+            const listaInspecoes = [];
+            
+            todosElementos.forEach(ext => {
+                const historicoExt = state.inspecoesCache
+                    .filter(i => i.idExtintor === ext.id)
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                if (historicoExt.length > 0) {
+                    const ultima = historicoExt[0];
+                    listaInspecoes.push({
+                        idExtintor: ext.id,
+                        local: ext.local || 'Local não especificado',
+                        tipo: ext.tipoKgL || ext.tipo || 'Tipo não especificado',
+                        nomeBrigadista: ultima.nomeBrigadista || 'N/A',
+                        dataInspecao: ultima.dataInspecao || 'N/A',
+                        vencimentoRecarga: ultima.vencimentoRecarga || 'N/A',
+                        vencimentoHidrostatico: ultima.vencimentoHidrostatico || 'N/A',
+                        observacoes: ultima.observacoes || '',
+                        conformidade: ultima.conformidade || {}
+                    });
+                }
+            });
+
+            // Ordenação numérica pelo código
+            listaInspecoes.sort((a, b) => {
+                const numA = parseInt((a.idExtintor.match(/\d+/) || [9999])[0]);
+                const numB = parseInt((b.idExtintor.match(/\d+/) || [9999])[0]);
+                return numA - numB;
+            });
+
+            const conformes = [];
+            const naoConformes = [];
+
+            listaInspecoes.forEach(item => {
+                const temErro = item.conformidade && Object.values(item.conformidade).includes('Não Conforme');
+                if (temErro || Object.keys(item.conformidade).length === 0) {
+                    naoConformes.push(item);
+                } else {
+                    conformes.push(item);
+                }
+            });
+
+            const total = listaInspecoes.length;
+            const taxa = total > 0 ? Math.round((conformes.length / total) * 100) : 0;
+
+            // Design do Header
+            doc.setFillColor(22, 30, 49);
+            doc.rect(0, 0, 210, 32, 'F');
+            doc.setFillColor(239, 68, 68);
+            doc.rect(0, 31, 210, 1, 'F');
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(15);
+            doc.text('NIBT BRIGADA - RELATORIO DE VISTORIAS', 10, 12);
+            
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.text('Controle de Inventario, Validade e Conformidade de Equipamentos', 10, 20);
+
+            const agora = new Date();
+            const dataHoraGeracao = agora.toLocaleDateString('pt-BR') + ' ' + agora.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(8);
+            doc.text(`Gerado em: ${dataHoraGeracao}`, 200, 12, { align: 'right' });
+
+            // Dashboard de Métricas
+            doc.setFillColor(248, 250, 252);
+            doc.setDrawColor(226, 232, 240);
+            doc.rect(10, 40, 190, 22, 'FD');
+
+            doc.setTextColor(100, 116, 139);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.5);
+            doc.text('TOTAL INSPECIONADOS', 33.75, 46, { align: 'center' });
+            doc.text('EM CONFORMIDADE', 81.25, 46, { align: 'center' });
+            doc.text('NAO CONFORMES', 128.75, 46, { align: 'center' });
+            doc.text('TAXA DE CONFORMIDADE', 176.25, 46, { align: 'center' });
+
+            doc.setTextColor(30, 41, 59);
+            doc.setFontSize(12);
+            doc.text(String(total), 33.75, 55, { align: 'center' });
+            doc.setTextColor(16, 185, 129);
+            doc.text(String(conformes.length), 81.25, 55, { align: 'center' });
+            doc.setTextColor(239, 68, 68);
+            doc.text(String(naoConformes.length), 128.75, 55, { align: 'center' });
+            doc.setTextColor(30, 41, 59);
+            doc.text(`${taxa}%`, 176.25, 55, { align: 'center' });
+
+            let yOffset = 72;
+
+            // Seção de Não Conformes
+            doc.setTextColor(185, 28, 28);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.text('1. DETALHES DE EQUIPAMENTOS NAO CONFORMES (ACAO REQUERIDA)', 10, yOffset);
+            yOffset += 6;
+
+            if (naoConformes.length === 0) {
+                doc.setTextColor(100, 116, 139);
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(10);
+                doc.text('Parabens! Nenhum equipamento apresenta pendencias ou inconformidades.', 10, yOffset);
+                yOffset += 10;
+            } else {
+                naoConformes.forEach(item => {
+                    if (yOffset > 250) { doc.addPage(); yOffset = 45; }
+
+                    // Card de Não Conformidade
+                    doc.setFillColor(254, 226, 226);
+                    doc.setDrawColor(252, 165, 165);
+                    doc.rect(10, yOffset, 190, 7, 'FD');
+
+                    doc.setTextColor(153, 27, 27);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(8.5);
+                    doc.text(` ${item.idExtintor} - ${item.local}  (${item.tipo})  |  Brigadista: ${item.nomeBrigadista}  |  Data: ${formatarDataBR(item.dataInspecao)}`, 12, yOffset + 4.8);
+                    yOffset += 7;
+
+                    doc.setDrawColor(252, 165, 165);
+                    doc.setFillColor(255, 255, 255);
+                    
+                    // Corpo do Card
+                    const pendencias = Object.entries(item.conformidade)
+                        .filter(([k, v]) => v === 'Não Conforme')
+                        .map(([k]) => MAP_CHECKLIST[k] || k);
+                    
+                    let cardHeight = 10;
+                    if (pendencias.length > 0) {
+                        cardHeight += 5 + (pendencias.length * 4);
+                    }
+                    if (item.observacoes.trim()) {
+                        cardHeight += 6;
+                    }
+
+                    doc.rect(10, yOffset, 190, cardHeight);
+                    doc.setTextColor(51, 65, 85);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(8);
+                    
+                    doc.text(`Vencimento Recarga: ${formatarDataBR(item.vencimentoRecarga)}   |   Teste Hidrostatico: ${formatarDataBR(item.vencimentoHidrostatico)}`, 13, yOffset + 5.5);
+                    let lineY = yOffset + 10;
+
+                    if (pendencias.length > 0) {
+                        doc.setTextColor(220, 38, 38);
+                        doc.setFont('helvetica', 'bold');
+                        doc.text('PENDENCIAS IDENTIFICADAS:', 13, lineY);
+                        doc.setFont('helvetica', 'normal');
+                        lineY += 4.5;
+                        pendencias.forEach(p => {
+                            doc.text(`- ${p}`, 16, lineY);
+                            lineY += 4;
+                        });
+                    } else {
+                        doc.setTextColor(220, 38, 38);
+                        doc.setFont('helvetica', 'bold');
+                        doc.text('PENDENCIAS IDENTIFICADAS: Sem dados de checklist ou vistoria nao finalizada.', 13, lineY);
+                        lineY += 4.5;
+                    }
+
+                    if (item.observacoes.trim()) {
+                        doc.setTextColor(100, 116, 139);
+                        doc.setFont('helvetica', 'italic');
+                        doc.text(`Observacoes: ${item.observacoes}`, 13, lineY);
+                    }
+
+                    yOffset += cardHeight + 4;
+                });
+            }
+
+            // Seção de Conformes
+            if (yOffset > 220) { doc.addPage(); yOffset = 45; }
+            yOffset += 4;
+            doc.setTextColor(21, 128, 61);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.text('2. DETALHES DE EQUIPAMENTOS EM CONFORMIDADE (OK)', 10, yOffset);
+            yOffset += 6;
+
+            if (conformes.length === 0) {
+                doc.setTextColor(100, 116, 139);
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(10);
+                doc.text('Nenhum equipamento em conformidade no momento.', 10, yOffset);
+            } else {
+                const colunas = ["Codigo", "Localizacao", "Tipo/Especificacao", "Brigadista", "Vistoria", "Recarga"];
+                const linhas = conformes.map(item => [
+                    item.idExtintor,
+                    item.local,
+                    item.tipo,
+                    item.nomeBrigadista,
+                    formatarDataBR(item.dataInspecao),
+                    formatarDataBR(item.vencimentoRecarga)
+                ]);
+
+                doc.autoTable({
+                    head: [colunas],
+                    body: linhas,
+                    startY: yOffset,
+                    margin: { left: 10, right: 10 },
+                    theme: 'striped',
+                    styles: { fontSize: 7.5, font: 'helvetica' },
+                    headStyles: { fillColor: [21, 128, 61], textColor: [255, 255, 255], fontStyle: 'bold' },
+                    alternateRowStyles: { fillColor: [248, 250, 252] }
+                });
+            }
+
+            doc.save('Relatorio_Vistorias_Brigada.pdf');
+            exportRelatoriosModal.classList.add('hidden');
+            window.showModal("Exportado!", "Relatório PDF gerado e baixado com sucesso.", "success");
+
+        } catch (err) {
+            console.error("Erro ao gerar PDF", err);
+            window.showModal("Erro", "Houve uma falha ao compilar o PDF.", "error");
+        }
+    };
+}
+
+if (btnExportExcel) {
+    btnExportExcel.onclick = () => {
+        try {
+            const todosElementos = [...state.inventarioCache, ...state.hidrantesCache];
+            const dataSheet = [];
+
+            todosElementos.forEach(ext => {
+                const historicoExt = state.inspecoesCache
+                    .filter(i => i.idExtintor === ext.id)
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                
+                const ultima = historicoExt[0] || {};
+                const conformidade = ultima.conformidade || {};
+                const isConf = Object.keys(conformidade).length > 0 && !Object.values(conformidade).includes('Não Conforme');
+                const statusGeral = Object.keys(conformidade).length === 0 ? 'Sem Inspeção' : (isConf ? 'Conforme' : 'Não Conforme');
+
+                const row = {
+                    'Código': ext.id,
+                    'Localização': ext.local || 'Não especificado',
+                    'Tipo/Especificações': ext.tipoKgL || ext.tipo || 'Não especificado',
+                    'Status Geral': statusGeral,
+                    'Data da Vistoria': formatarDataBR(ultima.dataInspecao || ''),
+                    'Brigadista': ultima.nomeBrigadista || '',
+                    'E-mail Brigadista': ultima.emailBrigadista || '',
+                    'Vencimento Recarga': formatarDataBR(ultima.vencimentoRecarga || ''),
+                    'Vencimento Teste Hidrostático': formatarDataBR(ultima.vencimentoHidrostatico || ''),
+                    'Observações': ultima.observacoes || ''
+                };
+
+                // Adiciona colunas do checklist
+                Object.entries(MAP_CHECKLIST).forEach(([key_db, friendly_label]) => {
+                    row[friendly_label] = conformidade[key_db] || 'N/A';
+                });
+
+                dataSheet.push(row);
+            });
+
+            // Ordenação pelo número do código
+            dataSheet.sort((a, b) => {
+                const numA = parseInt((a['Código'].match(/\d+/) || [9999])[0]);
+                const numB = parseInt((b['Código'].match(/\d+/) || [9999])[0]);
+                return numA - numB;
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(dataSheet);
+
+            // Ajustar largura das colunas
+            const colWidths = [];
+            Object.keys(dataSheet[0] || {}).forEach(key => {
+                let maxLen = key.length;
+                dataSheet.forEach(row => {
+                    const val = String(row[key] || '');
+                    if (val.length > maxLen) maxLen = val.length;
+                });
+                colWidths.push({ wch: Math.min(maxLen + 3, 35) });
+            });
+            ws['!cols'] = colWidths;
+
+            XLSX.utils.book_append_sheet(wb, ws, 'Vistorias');
+            XLSX.writeFile(wb, 'Relatorio_Vistorias_Brigada.xlsx');
+
+            exportRelatoriosModal.classList.add('hidden');
+            window.showModal("Exportado!", "Relatório Excel gerado e baixado com sucesso.", "success");
+
+        } catch (err) {
+            console.error("Erro ao gerar Excel", err);
+            window.showModal("Erro", "Houve uma falha ao compilar o Excel.", "error");
+        }
+    };
+}
+
 if (addElementoForm) {
     addElementoForm.onsubmit = async (e) => {
         e.preventDefault();
